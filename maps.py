@@ -47,6 +47,35 @@ def generate_terrain(width, height, scale):
             terrain[i, j] = elevation
     return terrain
 
+# Smoothing function to eliminate isolated elevation pixels
+def smooth_terrain(terrain):
+    # Iterate over elevation levels in sorted order, starting from the lowest
+    unique_elevations = sorted(np.unique(terrain))
+
+    # For each elevation level, smooth isolated pixels
+    for elevation in unique_elevations:
+        for i in range(1, terrain.shape[0] - 1):  # Avoid edges
+            for j in range(1, terrain.shape[1] - 1):  # Avoid edges
+                if terrain[i, j] != elevation:
+                    continue  # Only process pixels at this elevation
+                    
+                # Count the number of neighboring pixels with the same elevation
+                same_elevation_count = 0
+                if terrain[i-1, j] == elevation:  # Up
+                    same_elevation_count += 1
+                if terrain[i+1, j] == elevation:  # Down
+                    same_elevation_count += 1
+                if terrain[i, j-1] == elevation:  # Left
+                    same_elevation_count += 1
+                if terrain[i, j+1] == elevation:  # Right
+                    same_elevation_count += 1
+
+                # If 3 or more neighbors have the same elevation, change this pixel
+                if same_elevation_count >= 3:
+                    terrain[i, j] = elevation
+    
+    return terrain
+
 # Map terrain to color
 def terrain_to_color_map(terrain):
     color_map = np.zeros((terrain.shape[0], terrain.shape[1], 3))  # RGB color map
@@ -85,7 +114,12 @@ def plot_with_dynamic_legend(terrain, color_map):
 
 # Generate terrain and color map
 terrain = generate_terrain(width, height, scale)
-color_map = terrain_to_color_map(terrain)
+
+# Smooth the terrain
+smoothed_terrain = smooth_terrain(terrain.copy())
+
+# Convert smoothed terrain to color map
+color_map = terrain_to_color_map(smoothed_terrain)
 
 # Plot the map with a dynamic legend
-plot_with_dynamic_legend(terrain, color_map)
+plot_with_dynamic_legend(smoothed_terrain, color_map)
