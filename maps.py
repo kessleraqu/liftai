@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from noise import snoise2  # Simplex noise function
 import random
+from mpl_toolkits.mplot3d import Axes3D  # Import 3D plotting
 
 # Map parameters
 width, height = 200, 200  # Dimensions of the map grid
@@ -11,24 +12,24 @@ elevation_intervals = np.arange(-500, 1501, 50)  # Elevation levels from -500 to
 
 # Color mapping based on elevation
 def get_color(elevation):
-    if elevation <= 0:
+    if elevation == 0:
         return [0, 0, 1]  # Blue for water
-    elif 50 <= elevation <= 400:
-        # Gradient from light green to dark green (simulating grass/plains)
-        normalized_elevation = (elevation - 50) / 350  # Normalize between 50 and 400
-        return [0.5 - 0.3 * normalized_elevation, 1 - 0.5 * normalized_elevation, 0.5 - 0.2 * normalized_elevation]  # Light green to dark green
-    elif 450 <= elevation <= 900:
-        # Gradient from dark yellow to brown (simulating mountain/earth/dirt)
-        normalized_elevation = (elevation - 450) / 450  # Normalize between 450 and 900
-        return [0.6 - 0.4 * normalized_elevation, 0.5 - 0.5 * normalized_elevation, 0.1]  # Dark yellow to brown
-    elif 900 < elevation <= 1000:
-        # Gradient from grey to dark grey (simulating rocks)
-        normalized_elevation = (elevation - 900) / 100  # Normalize between 900 and 1000
-        return [0.6 - 0.3 * normalized_elevation, 0.6 - 0.3 * normalized_elevation, 0.6 - 0.3 * normalized_elevation]  # Grey gradient
-    elif elevation > 1000:
+    elif elevation == 10:
+        return [0.3, 1, 0.3]  # Green for 10
+    elif elevation == 20:
+        return [0, 0.5, 0]  # Darker green for 20
+    elif elevation >= 150:  # Snow white for the last 3 heights
         return [1, 1, 1]  # Snow white
+    elif 100 <= elevation < 150:  # Light grey to dark grey gradient for the next 5 heights
+        normalized_elevation = (elevation - 100) / 50  # Normalize between 100 and 150
+        return [0.8 - 0.5 * normalized_elevation, 0.8 - 0.5 * normalized_elevation, 0.8 - 0.5 * normalized_elevation]  # Light grey to dark grey
+    else:  # Brown to black gradient for the rest of the heights until green
+        normalized_elevation = (elevation - 30) / 70  # Normalize between 30 and 100 (adjust range accordingly)
+        return [0.6 - 0.6 * normalized_elevation, 0.3 - 0.3 * normalized_elevation, 0.1 - 0.1 * normalized_elevation]  # Brown to black gradient
 
-# Generate terrain using Simplex noise with a random seed and scaling
+
+
+# Generate terrain using Simplex noise with no bias applied
 def generate_terrain(width, height, scale):
     terrain = np.zeros((width, height))
     # Generate a random offset to introduce variability in the noise
@@ -47,34 +48,30 @@ def generate_terrain(width, height, scale):
             terrain[i, j] = elevation
     return terrain
 
-# Smoothing function to eliminate isolated elevation pixels
-def smooth_terrain(terrain):
-    # Iterate over elevation levels in sorted order, starting from the lowest
-    unique_elevations = sorted(np.unique(terrain))
-
-    # For each elevation level, smooth isolated pixels
-    for elevation in unique_elevations:
-        for i in range(1, terrain.shape[0] - 1):  # Avoid edges
-            for j in range(1, terrain.shape[1] - 1):  # Avoid edges
-                if terrain[i, j] != elevation:
-                    continue  # Only process pixels at this elevation
-                    
-                # Count the number of neighboring pixels with the same elevation
-                same_elevation_count = 0
-                if terrain[i-1, j] == elevation:  # Up
-                    same_elevation_count += 1
-                if terrain[i+1, j] == elevation:  # Down
-                    same_elevation_count += 1
-                if terrain[i, j-1] == elevation:  # Left
-                    same_elevation_count += 1
-                if terrain[i, j+1] == elevation:  # Right
-                    same_elevation_count += 1
-
-                # If 3 or more neighbors have the same elevation, change this pixel
-                if same_elevation_count >= 3:
-                    terrain[i, j] = elevation
+# Apply elevation adjustments as per the user's requirement
+def adjust_terrain(terrain):
+    adjusted_terrain = terrain.copy()
     
-    return terrain
+    # Apply changes: every value lower than 0 becomes 0
+    adjusted_terrain[adjusted_terrain < 0] = 0
+    
+    # Values between 50 and 200 become 10 (green)
+    adjusted_terrain[(adjusted_terrain >= 50) & (adjusted_terrain <= 200)] = 10
+    
+    # Values between 250 and 400 become 20 (darker green)
+    adjusted_terrain[(adjusted_terrain >= 250) & (adjusted_terrain <= 400)] = 20
+    
+    # Now iterate over the rest of the heights above 400 until 1500
+    # Start remapping at 30 and increment by increasing steps
+    current_value = 30
+    increment = 10
+
+    for elevation in range(450, 1501, 50):
+        adjusted_terrain[adjusted_terrain == elevation] = current_value
+        current_value += increment
+        increment += 5  # Increment increases by 5 for each iteration
+    
+    return adjusted_terrain
 
 # Map terrain to color
 def terrain_to_color_map(terrain):
@@ -85,41 +82,35 @@ def terrain_to_color_map(terrain):
             color_map[i, j] = get_color(elevation)
     return color_map
 
-# Generate dynamic legend based on the current map
-def generate_legend(terrain):
-    unique_elevations = np.unique(terrain)
-    legend_elements = []
+# 3D Visualization of Terrain with Color Mapping
+def plot_3d_terrain(terrain, color_map):
+    x = np.arange(terrain.shape[0])
+    y = np.arange(terrain.shape[1])
+    x, y = np.meshgrid(x, y)
+    z = terrain
+
+    fig = plt.figure(figsize=(10, 7))
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Apply the terrain and color map to the surface
+    ax.plot_surface(x, y, z, facecolors=color_map, rstride=1, cstride=1, antialiased=False)
     
-    for elevation in unique_elevations:
-        color = get_color(elevation)
-        label = f'{int(elevation)}m'  # Display the exact elevation in meters
-        legend_elements.append(Patch(facecolor=color, edgecolor='k', label=label))
+    # Set labels and title
+    ax.set_title('3D Terrain Map with Elevation and Colors')
+    ax.set_xlabel('X axis')
+    ax.set_ylabel('Y axis')
+    ax.set_zlabel('Elevation (m)')
     
-    return legend_elements
-
-# Generate and display the terrain map with a dynamic legend
-def plot_with_dynamic_legend(terrain, color_map):
-    fig, ax = plt.subplots()
-    ax.imshow(color_map)
-    ax.set_title("Random Pixel Map - Elevation and Color")
-    ax.axis('off')  # Turn off the axis
-
-    # Generate dynamic legend based on terrain
-    legend_elements = generate_legend(terrain)
-
-    # Add the legend
-    ax.legend(handles=legend_elements, loc='upper right', title="Elevation (m)")
-
     plt.show()
 
-# Generate terrain and color map
+# Generate terrain
 terrain = generate_terrain(width, height, scale)
 
-# Smooth the terrain
-smoothed_terrain = smooth_terrain(terrain.copy())
+# Adjust the terrain based on the provided rules
+adjusted_terrain = adjust_terrain(terrain)
 
-# Convert smoothed terrain to color map
-color_map = terrain_to_color_map(smoothed_terrain)
+# Convert adjusted terrain to color map
+color_map = terrain_to_color_map(adjusted_terrain)
 
-# Plot the map with a dynamic legend
-plot_with_dynamic_legend(smoothed_terrain, color_map)
+# Plot the map in 3D with colors
+plot_3d_terrain(adjusted_terrain, color_map)
