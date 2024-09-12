@@ -168,7 +168,7 @@ terrain = generate_terrain(width, height, scale)
 adjusted_terrain = adjust_terrain(terrain)
 
 # Generate forest
-desired_forest_count = 10  # Specify the number of forests you want
+desired_forest_count = 22  # Specify the number of forests you want
 forest_map = add_forests(adjusted_terrain, desired_forest_count)
 
 # Convert adjusted terrain to color map with forests
